@@ -37,20 +37,15 @@ export interface CallToken {
 }
 
 export interface CallData {
-  /**
-   * Call ID
-   */
-  id:string;
-  /**
-   * Call Type
-   */
-  media?: CallType;
-  /**
-   * Call Display name
-   */
-  name?:string;
-  /**
-   * Call duration
-   */
-  duration?:string;
+  connectionId  :   string
+  username      ?:  string
+  callerId       :  string
+  group          :  string
+  message        :  string
+  organization   :  string
+  roomname       :  string
+  source         :  string
+  title          :  string
+  type           :  string
+  duration       :  string
 }
