@@ -1,7 +1,7 @@
 {
   "name": "capacitor-plugin-callkit-voip",
   "version": "1.0.5",
-  "description": "Provide CallKit and PushKit functionality to capacitor",
+  "description": "Provide CallKit and PushKit functionality to capacitor only iOS",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
