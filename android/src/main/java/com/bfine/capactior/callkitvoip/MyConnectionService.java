@@ -48,8 +48,18 @@ public class MyConnectionService extends ConnectionService {
 
                 if(plugin != null)
                     plugin.notifyEvent("callAnswered",
-                            request.getExtras().getString("username"),
-                            request.getExtras().getString("connectionId")
+                        request.getExtras().getString("username"),
+                        request.getExtras().getString("connectionId"),
+                        request.getExtras().getString("callerId"),
+                        request.getExtras().getString("group"),
+                        request.getExtras().getString("message"),
+                        request.getExtras().getString("organization"),
+                        request.getExtras().getString("roomname"),
+                        request.getExtras().getString("source"),
+                        request.getExtras().getString("title"),
+                        request.getExtras().getString("type"),
+                        request.getExtras().getString("duration"),
+                        request.getExtras().getString("media")
                     );
 
 
