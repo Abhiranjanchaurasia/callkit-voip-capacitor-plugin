@@ -1,7 +1,7 @@
 {
-  "name": "capacitor-plugin-callkit-voip",
+  "name": "callkit-voip-capacitor-plugin",
   "version": "1.0.5",
-  "description": "Provide CallKit and PushKit functionality to capacitor only iOS",
+  "description": "Provide CallKit and PushKit functionality to capacitor on iOS & android",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
@@ -13,14 +13,14 @@
     "ios/Plugin/",
     "CapacitorPluginCallkitVoip.podspec"
   ],
-  "author": "kin9aziz",
+  "author": "abhiranjanchaurasia",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kin9aziz/capacitor-plugin-callkit-voip.git.git"
+    "url": "git+https://github.com/Abhiranjanchaurasia/callkit-voip-capacitor-plugin.git"
   },
   "bugs": {
-    "url": "https://github.com/kin9aziz/capacitor-plugin-callkit-voip.git/issues"
+    "url": "https://github.com/Abhiranjanchaurasia/callkit-voip-capacitor-plugin.git/issues"
   },
   "keywords": [
     "capacitor",
