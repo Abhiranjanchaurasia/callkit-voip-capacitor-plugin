@@ -5,6 +5,8 @@ export interface CallKitVoipPlugin {
 
   show_call_notification(callData: CallData): Promise<void>;
 
+  abortCall(): Promise<void>;
+
   addListener(
       eventName: 'registration',
       listenerFunc: (token:CallToken)   => void

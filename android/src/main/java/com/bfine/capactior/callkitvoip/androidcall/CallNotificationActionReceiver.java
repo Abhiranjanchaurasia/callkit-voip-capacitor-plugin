@@ -25,8 +25,6 @@ public class CallNotificationActionReceiver extends BroadcastReceiver {
         if (intent != null && intent.getExtras() != null) {
         
             String action = intent.getStringExtra("ACTION_TYPE");
-            String roomName = intent.getStringExtra("roomName");
-            String username = intent.getStringExtra("username");
             String callerId = intent.getStringExtra("callerId");
             String group = intent.getStringExtra("group");
             String message = intent.getStringExtra("message");
@@ -37,40 +35,43 @@ public class CallNotificationActionReceiver extends BroadcastReceiver {
             String type = intent.getStringExtra("type");
             String duration = intent.getStringExtra("duration");
             String media = intent.getStringExtra("media");
-
-
+            String eventName = intent.getStringExtra("eventName");
+            Log.d("onReceive!!", roomname);
             if (action != null&& !action.equalsIgnoreCase("")) {
-                performClickAction(context, action,roomName, username, callerId, group, message, organization, roomname, source, title, type, duration, media);
+                performClickAction(context, action, callerId, group, message, organization, roomname, source, title, type, duration, media);
             }
 
             // Close the notification after the click action is performed.
             // Intent iclose = new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
             // context.sendBroadcast(iclose);
             context.stopService(new Intent(context, CallNotificationService.class));
-
         }
 
 
     }
-    private void performClickAction(Context context, String action) {
-        context.stopService(new Intent(mContext, CallNotificationService.class));
-        Intent it = new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
-        context.sendBroadcast(it);
-    }
-
-    private void performClickAction(Context context, String action,String roomName,String username, String callerId,String group, String message,String organization,String roomname, String source,String title,String type, String duration,String media) {
-        Log.d("performClickAction","action "+action + "   "+username);
+    
+    private void performClickAction(Context context, String action, String callerId,String group, String message,String organization,String roomname, String source,String title,String type, String duration,String media) {
+        Log.d("performClickAction","action "+action + "   "+roomname);
         context.stopService(new Intent(context, CallNotificationService.class));
         // Intent it = new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
         // context.sendBroadcast(it);
-        end_call(username,roomName, callerId, group, message, organization, roomname, source, title, type, duration, media);
+        end_call(action, callerId, group, message, organization, roomname, source, title, type, duration, media);
 
     }
 
-    public void end_call( String username,String connectionId, String callerId,String group, String message,String organization,String roomname, String source,String title,String type, String duration,String media) {
+    public void end_call(String action, String callerId,String group, String message,String organization,String roomname, String source,String title,String type, String duration,String media) {
         CallKitVoipPlugin instance = CallKitVoipPlugin.getInstance();
-        instance.notifyEvent("RejectCall",username,connectionId, callerId, group, message, organization, roomname, source, title, type, duration, media);
-
+        String eventName = "";
+        if (action != null&& action.equalsIgnoreCase("RECEIVE_CALL")) {
+            eventName = "callAnswered";
+        } else if (action != null&& action.equalsIgnoreCase("CANCEL_CALL")) {
+            eventName = "callEnded";
+        } else if (action != null&& action.equalsIgnoreCase("DIALOG_CALL")) {
+            eventName = "callAnswered";
+        } else {
+            eventName = "callEnded";
+        }
+        instance.notifyEvent(eventName, callerId, group, message, organization, roomname, source, title, type, duration, media);
     }
 
     private Boolean checkAppPermissions() {

@@ -2,6 +2,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     >
 
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
@@ -18,5 +19,27 @@
             <action android:name="ConstantApp.CALL_CANCEL_ACTION"/>
         </intent-filter>
     </receiver>
+        <!-- <service android:name="sa.ihorizon.public.callkitvoip.MyConnectionService"
+            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.telecom.ConnectionService" />
+            </intent-filter>
+        </service>
+        <service
+            android:name="sa.ihorizon.public.callkitvoip.androidcall.CallNotificationService"
+            android:enabled="true"
+            android:stopWithTask="true"
+            android:exported="true">
+        </service>
+        <receiver
+            android:name="sa.ihorizon.public.callkitvoip.androidcall.CallNotificationActionReceiver">
+        </receiver>
+        <service
+            android:name="sa.ihorizon.public.callkitvoip.androidcall.VoipBackgroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:stopWithTask="true">
+        </service> -->
     </application>
 </manifest>

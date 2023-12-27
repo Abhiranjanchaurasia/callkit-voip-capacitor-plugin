@@ -33,6 +33,22 @@ public class CallKitVoipPlugin extends Plugin {
         context = this.getActivity().getApplicationContext();
     }
 
+    @Override
+    protected void handleOnNewIntent(Intent data) {
+        super.handleOnNewIntent(data);
+        String callerId = data.getStringExtra("callerId");
+        String group = data.getStringExtra("group");
+        String message = data.getStringExtra("message");
+        String organization = data.getStringExtra("organization");
+        String roomname = data.getStringExtra("roomname");
+        String source = data.getStringExtra("source");
+        String title = data.getStringExtra("title");
+        String type = data.getStringExtra("type");
+        String duration = data.getStringExtra("duration");
+        String media = data.getStringExtra("media");
+        String eventName = data.getStringExtra("eventName");
+    }
+
     @PluginMethod
     public void register(PluginCall call) {
         Log.d("CallKitVoip","register");
@@ -40,12 +56,8 @@ public class CallKitVoipPlugin extends Plugin {
         call.resolve();
     }
     
-    public void notifyEvent(String eventName, String username, String connectionId, String callerId,String group, String message,String organization,String roomname, String source,String title,String type, String duration,String media){
-        Log.d("notifyEvent",eventName + "  " + username + "   " + connectionId);
-
+    public void notifyEvent(String eventName, String callerId,String group, String message,String organization,String roomname, String source,String title,String type, String duration,String media){
        JSObject data = new JSObject();
-       data.put("username", username);
-       data.put("connectionId",connectionId);
        data.put("callerId", callerId);
        data.put("group", group);
        data.put("message", message);
@@ -56,7 +68,7 @@ public class CallKitVoipPlugin extends Plugin {
        data.put("type", type);
        data.put("duration", duration);
        data.put("media", media);
-       notifyListeners("callAnswered", data);
+       notifyListeners(eventName, data);
     }
 
     public static CallKitVoipPlugin getInstance() {
@@ -70,8 +82,6 @@ public class CallKitVoipPlugin extends Plugin {
     @PluginMethod
     public void show_call_notification(PluginCall call) {
 
-        String connectionId = call.getString("ConnectionId");
-        String username = call.getString("Username");
         String callerId = call.getString("callerId");
         String group = call.getString("group");
         String message = call.getString("message");
@@ -85,8 +95,6 @@ public class CallKitVoipPlugin extends Plugin {
 
         Intent serviceIntent = new Intent(context, CallNotificationService.class);
         serviceIntent.putExtra("call_type","video");
-        serviceIntent.putExtra("connectionId", connectionId);
-        serviceIntent.putExtra("username", username);
         serviceIntent.putExtra("callerId", callerId);
         serviceIntent.putExtra("group", group);
         serviceIntent.putExtra("message", message);
@@ -105,5 +113,13 @@ public class CallKitVoipPlugin extends Plugin {
        }
 
     }
+
+    @PluginMethod
+    public void abortCall(PluginCall call) {
+        Log.d("abortCall","Called");
+        Intent serviceIntent = new Intent(context, CallNotificationService.class);
+        context.stopService(serviceIntent);
+    }
+
 
 }

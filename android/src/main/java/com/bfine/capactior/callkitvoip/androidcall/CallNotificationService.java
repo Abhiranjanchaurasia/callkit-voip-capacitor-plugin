@@ -28,6 +28,8 @@ import androidx.core.app.NotificationCompat;
 import com.bfine.capactior.callkitvoip.R;
 
 import java.util.Objects;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 
 public class CallNotificationService extends Service implements MediaPlayer.OnPreparedListener {
@@ -46,6 +48,18 @@ AudioManager.OnAudioFocusChangeListener afChangeListener;
 private Handler handler;
 private boolean status = false;
 private boolean vstatus = false;
+
+Timer timer = new Timer();
+
+TimerTask task = new TimerTask() {
+    @Override
+    public void run() {
+        releaseMediaPlayer();
+        releaseVibration();
+        getApplicationContext().stopService(new Intent(getApplicationContext(), CallNotificationService.class));
+        timer.cancel();
+    }
+};
 
 
 @Nullable
@@ -188,8 +202,6 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         data = intent.getExtras();
         name =data.getString("inititator");
         callType ="Video";
-        username = intent.getStringExtra("username");
-        roomName = intent.getStringExtra("roomName");
         callerId = intent.getStringExtra("callerId");
         group = intent.getStringExtra("group");
         message = intent.getStringExtra("message");
@@ -200,7 +212,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         type = intent.getStringExtra("type");
         duration = intent.getStringExtra("duration");
         media = intent.getStringExtra("media");
-
+        Log.d("onStartCommand!!", roomname);
     }
     try {
         Intent receiveCallAction = new Intent(getApplicationContext(), CallNotificationActionReceiver.class);
@@ -208,8 +220,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         receiveCallAction.putExtra("ConstantApp.CALL_RESPONSE_ACTION_KEY", "ConstantApp.CALL_RECEIVE_ACTION");
         receiveCallAction.putExtra("ACTION_TYPE", "RECEIVE_CALL");
         receiveCallAction.putExtra("NOTIFICATION_ID",NOTIFICATION_ID);
-        receiveCallAction.putExtra("roomName",roomName);
-        receiveCallAction.putExtra("username",username);
+        receiveCallAction.putExtra("eventName", "callAnswered");
         receiveCallAction.putExtra("callerId", callerId);
         receiveCallAction.putExtra("group", group);
         receiveCallAction.putExtra("message", message);
@@ -227,8 +238,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         cancelCallAction.putExtra("ConstantApp.CALL_RESPONSE_ACTION_KEY", "ConstantApp.CALL_CANCEL_ACTION");
         cancelCallAction.putExtra("ACTION_TYPE", "CANCEL_CALL");
         cancelCallAction.putExtra("NOTIFICATION_ID",NOTIFICATION_ID);
-        cancelCallAction.putExtra("roomName",roomName);
-        cancelCallAction.putExtra("username",username);
+        cancelCallAction.putExtra("eventName", "callEnded");
         cancelCallAction.putExtra("callerId", callerId);
         cancelCallAction.putExtra("group", group);
         cancelCallAction.putExtra("message", message);
@@ -245,8 +255,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         Intent callDialogAction = new Intent(getApplicationContext(), CallNotificationActionReceiver.class);
         callDialogAction.putExtra("ACTION_TYPE", "DIALOG_CALL");
         callDialogAction.putExtra("NOTIFICATION_ID",NOTIFICATION_ID);
-        callDialogAction.putExtra("roomName",roomName);
-        callDialogAction.putExtra("username",username);
+        callDialogAction.putExtra("eventName", "callStarted");
         callDialogAction.putExtra("callerId", callerId);
         callDialogAction.putExtra("group", group);
         callDialogAction.putExtra("message", message);
@@ -259,37 +268,26 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         callDialogAction.putExtra("media", media);
 
         callDialogAction.setAction("DIALOG_CALL");
+        Log.d("onCreatePendingEvent!!", roomname);
+        PendingIntent receiveCallPendingIntent = PendingIntent.getBroadcast(getApplicationContext(), 1200, receiveCallAction, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent cancelCallPendingIntent = PendingIntent.getBroadcast(getApplicationContext(), 1201, cancelCallAction, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent callDialogPendingIntent = PendingIntent.getBroadcast(getApplicationContext(), 1202, callDialogAction, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        PendingIntent receiveCallPendingIntent = null;
-        PendingIntent cancelCallPendingIntent = null;
-        PendingIntent callDialogPendingIntent = null;
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                receiveCallPendingIntent = PendingIntent.getBroadcast(getApplicationContext(), 1200, receiveCallAction, PendingIntent.FLAG_IMMUTABLE);
-                cancelCallPendingIntent = PendingIntent.getBroadcast(getApplicationContext(), 1201, cancelCallAction, PendingIntent.FLAG_IMMUTABLE);
-                callDialogPendingIntent = PendingIntent.getBroadcast(getApplicationContext(), 1202, callDialogAction, PendingIntent.FLAG_IMMUTABLE);
-
-        } else {
-            receiveCallPendingIntent = PendingIntent.getBroadcast(getApplicationContext(), 1200, receiveCallAction, PendingIntent.FLAG_UPDATE_CURRENT);
-            cancelCallPendingIntent = PendingIntent.getBroadcast(getApplicationContext(), 1201, cancelCallAction, PendingIntent.FLAG_UPDATE_CURRENT);
-            callDialogPendingIntent = PendingIntent.getBroadcast(getApplicationContext(), 1202, callDialogAction, PendingIntent.FLAG_UPDATE_CURRENT);
-
-        }
-
-        createChannel();
+        // createChannel();
         NotificationCompat.Builder notificationBuilder = null;
         if (data != null) {
            Uri ringUri= Settings.System.DEFAULT_RINGTONE_URI;
             notificationBuilder = new NotificationCompat.Builder(this, INCOMING_CHANNEL_ID)
-                    .setContentTitle(title)
-                    .setContentText(message)
-                    .setSmallIcon(R.drawable.ic_call_black_24dp)
-                    .setPriority(NotificationCompat.PRIORITY_MAX)
-                    .setCategory(NotificationCompat.CATEGORY_CALL)
-                    .addAction(R.drawable.ic_call_black_24dp, getString(R.string.reject), cancelCallPendingIntent)
-                    .addAction(R.drawable.ic_call_black_24dp, getString(R.string.answer), receiveCallPendingIntent)
-                    .setAutoCancel(true)
-                    .setSound(ringUri)
-                    .setFullScreenIntent(callDialogPendingIntent, true);
+                .setContentTitle(title)
+                .setContentText(message)
+                .setSmallIcon(R.drawable.ic_call_black_24dp)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_CALL)
+                .addAction(R.drawable.ic_call_black_24dp, getString(R.string.reject), cancelCallPendingIntent)
+                .addAction(R.drawable.ic_call_black_24dp, getString(R.string.answer), receiveCallPendingIntent)
+                .setAutoCancel(true)
+                .setSound(ringUri)
+                .setFullScreenIntent(callDialogPendingIntent, true);
             
         }
 
@@ -297,6 +295,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         if (notificationBuilder != null) {
             incomingCallNotification = notificationBuilder.build();
         }
+        timer.schedule(task, 60000);
         startForeground(NOTIFICATION_ID, incomingCallNotification);
 
        

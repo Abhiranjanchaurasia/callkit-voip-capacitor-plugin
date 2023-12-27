@@ -26,7 +26,6 @@ public class VoipBackgroundService extends Service
         return false;
     }
 
-
     @Override
     public IBinder onBind(Intent intent)
     {
@@ -43,10 +42,8 @@ public class VoipBackgroundService extends Service
     public int onStartCommand(Intent intent, int flags, int startId)
     {
         Log.d("MySipService", "onStartCommand");
-        if(intent.hasExtra("connectionId") && intent.hasExtra("username"))
+        if(intent.hasExtra("callerId") && intent.hasExtra("organization"))
         {
-            String connectionId = intent.getStringExtra("connectionId");
-            String username = intent.getStringExtra("username");
             String callerId = intent.getStringExtra("callerId");
             String group = intent.getStringExtra("group");
             String message = intent.getStringExtra("message");
@@ -57,25 +54,25 @@ public class VoipBackgroundService extends Service
             String type = intent.getStringExtra("type");
             String duration = intent.getStringExtra("duration");
             String media = intent.getStringExtra("media");
+            if(!isServiceRunningInForeground(VoipBackgroundService.this,CallNotificationService.class)) {
+                show_call_notification("incoming",callerId, group, message, organization, roomname, source, title, type, duration, media);
+                KeyguardManager km = (KeyguardManager) getApplicationContext().getSystemService(Context.KEYGUARD_SERVICE);
+                KeyguardManager.KeyguardLock kl = km.newKeyguardLock("name");
+                kl.disableKeyguard();
+            }
+
             
-            show_call_notification("incoming",username,connectionId, callerId, group, message, organization, roomname, source, title, type, duration, media);
-            KeyguardManager km = (KeyguardManager) getApplicationContext().getSystemService(Context.KEYGUARD_SERVICE);
-            KeyguardManager.KeyguardLock kl = km.newKeyguardLock("name");
-            kl.disableKeyguard();
             
         }
         return START_NOT_STICKY;
     }
 
 
-    public void show_call_notification(String action,String username,String roomName, String callerId,String group, String message,String organization,String roomname, String source,String title,String type, String duration,String media)
+    public void show_call_notification(String action,String callerId,String group, String message,String organization,String roomname, String source,String title,String type, String duration,String media)
     {
         Log.d("show_call_notification",action);
         Intent serviceIntent = new Intent(this, CallNotificationService.class);
         serviceIntent.setAction(action);
-        // serviceIntent.putExtra("token",token);
-        serviceIntent.putExtra("username",username);
-        serviceIntent.putExtra("roomName",roomName);
         serviceIntent.putExtra("callerId", callerId);
         serviceIntent.putExtra("group", group);
         serviceIntent.putExtra("message", message);
@@ -95,6 +92,10 @@ public class VoipBackgroundService extends Service
         } else {
             VoipBackgroundService.this.startService(serviceIntent);
         }
+    }
+
+    public void abortCall() {
+        getApplicationContext().stopService(new Intent(this, CallNotificationService.class));
     }
 
 
