@@ -5,6 +5,7 @@ import CallKit
 import PushKit
 import FirebaseAuth
 import FirebaseCore
+import UserNotifications
 
 /**
  * CallKit Voip Plugin provides native PushKit functionality with apple CallKit to capacitor
@@ -24,6 +25,10 @@ public class CallKitVoipPlugin: CAPPlugin {
     private let firebaseAuthQueue = DispatchQueue(label: "firebaseAuthQueue")
     private var abortedCallRegistry = Set<UUID>()
     private let abortedCallQueue = DispatchQueue(label: "abortedCallQueue")
+    
+    private var unlockCancelTimer: Timer?
+    private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
+
 
     override public func load() {
         voipRegistry.delegate = self
@@ -225,6 +230,20 @@ extension CallKitVoipPlugin: CXProviderDelegate {
 
     public func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
         notifyEvent(eventName: "callAnswered", uuid: action.callUUID)
+        
+        // Begin a short background task to keep process alive
+        backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "UnlockCheck") {
+            UIApplication.shared.endBackgroundTask(self.backgroundTask)
+            self.backgroundTask = .invalid
+        }
+
+        // Start a timer instead of DispatchQueue delay
+        unlockCancelTimer?.invalidate()
+        unlockCancelTimer = Timer.scheduledTimer(timeInterval: 3.0, target: self, selector: #selector(self.checkUnlockState), userInfo: nil, repeats: false)
+
+        // Observe activation
+        NotificationCenter.default.addObserver(self, selector: #selector(self.onAppBecameActive), name: UIApplication.didBecomeActiveNotification, object: nil)
+        
         action.fulfill()
     }
 
@@ -248,6 +267,52 @@ extension CallKitVoipPlugin: CXProviderDelegate {
     public func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         notifyEvent(eventName: "callStarted", uuid: action.callUUID)
         action.fulfill()
+    }
+    
+    @objc private func checkUnlockState() {
+        if UIApplication.shared.applicationState != .active {
+            // User pressed Cancel on unlock
+            self.notifyListeners("unlockCancelDetected", data: [:])
+            DispatchQueue.main.async {
+                self.showPickupNotification()
+            }
+        }
+        cleanupUnlockObservers()
+    }
+
+    @objc private func onAppBecameActive() {
+           // App became active within 3s → cancel the unlock cancel logic
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["video_call_pickup"])
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ["video_call_pickup"])
+        cleanupUnlockObservers()
+    }
+
+   private func cleanupUnlockObservers() {
+       unlockCancelTimer?.invalidate()
+       unlockCancelTimer = nil
+       NotificationCenter.default.removeObserver(self, name: UIApplication.didBecomeActiveNotification, object: nil)
+       if backgroundTask != .invalid {
+           UIApplication.shared.endBackgroundTask(backgroundTask)
+           backgroundTask = .invalid
+       }
+   }
+    private func showPickupNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "Video Call Ready"
+        content.body = "Tap to join your call"
+        content.sound = .default
+        content.categoryIdentifier = "video_call"
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(identifier: "video_call_pickup", content: content, trigger: trigger)
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Notification error: \(error.localizedDescription)")
+            } else {
+                print("✅ Pickup notification scheduled")
+            }
+        }
     }
 }
 
