@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0E69DA3B5BA715BAAD008E62 /* Pods_Plugin.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 626F8677CA2229B6863F3EC8 /* Pods_Plugin.framework */; };
 		170A8BEB2CE4F5AA00620982 /* RealTimeDataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 170A8BEA2CE4F5AA00620982 /* RealTimeDataService.swift */; };
+		179F8FA62EF3F3B100223F91 /* CallSessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 179F8FA52EF3F37C00223F91 /* CallSessionState.swift */; };
 		2F98D68224C9AAE500613A4C /* CallKitVoip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F98D68124C9AAE400613A4C /* CallKitVoip.swift */; };
 		50ADFF92201F53D600D50D53 /* Plugin.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 50ADFF88201F53D600D50D53 /* Plugin.framework */; };
 		50ADFF97201F53D600D50D53 /* CallKitVoipTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50ADFF96201F53D600D50D53 /* CallKitVoipTests.swift */; };
@@ -30,6 +31,7 @@
 
 /* Begin PBXFileReference section */
 		170A8BEA2CE4F5AA00620982 /* RealTimeDataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealTimeDataService.swift; sourceTree = "<group>"; };
+		179F8FA52EF3F37C00223F91 /* CallSessionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallSessionState.swift; sourceTree = "<group>"; };
 		2F98D68124C9AAE400613A4C /* CallKitVoip.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CallKitVoip.swift; sourceTree = "<group>"; };
 		50ADFF88201F53D600D50D53 /* Plugin.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Plugin.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		50ADFF8B201F53D600D50D53 /* CallKitVoipPlugin.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CallKitVoipPlugin.h; sourceTree = "<group>"; };
@@ -72,7 +74,6 @@
 				817A554FEA8123AFD50F7C1A /* Pods-Plugin.debug.xcconfig */,
 				5F91D0784A6EC3B3BB54ADA5 /* Pods-Plugin.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -99,6 +100,7 @@
 		50ADFF8A201F53D600D50D53 /* Plugin */ = {
 			isa = PBXGroup;
 			children = (
+				179F8FA52EF3F37C00223F91 /* CallSessionState.swift */,
 				50E1A94720377CB70090CE1A /* CallKitVoipPlugin.swift */,
 				2F98D68124C9AAE400613A4C /* CallKitVoip.swift */,
 				50ADFF8B201F53D600D50D53 /* CallKitVoipPlugin.h */,
@@ -269,6 +271,7 @@
 				50E1A94820377CB70090CE1A /* CallKitVoipPlugin.swift in Sources */,
 				2F98D68224C9AAE500613A4C /* CallKitVoip.swift in Sources */,
 				170A8BEB2CE4F5AA00620982 /* RealTimeDataService.swift in Sources */,
+				179F8FA62EF3F3B100223F91 /* CallSessionState.swift in Sources */,
 				50ADFFA82020EE4F00D50D53 /* CallKitVoipPlugin.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
