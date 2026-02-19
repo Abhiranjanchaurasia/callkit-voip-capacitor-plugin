@@ -11,10 +11,10 @@ Pod::Spec.new do |s|
   s.author = package['author']
   s.source = { :git => package['repository']['url'], :tag => s.version.to_s }
   s.source_files = 'ios/Plugin/**/*.{swift,h,m,c,cc,mm,cpp}'
-  s.ios.deployment_target  = '13.0'
+  s.ios.deployment_target  = '15.0'
   s.dependency 'Capacitor'
-  s.dependency 'Firebase/Auth', '~> 11.0'
-  s.dependency 'Firebase/Core', '~> 11.0'
-  s.dependency 'Firebase/Database', '~> 11.0'
+  s.dependency 'Firebase/Auth', '~> 12.7'
+  s.dependency 'Firebase/Core', '~> 12.7'
+  s.dependency 'Firebase/Database', '~> 12.7'
   s.swift_version = '5.1'
 end

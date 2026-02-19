@@ -1,5 +1,4 @@
 import Foundation
-import AVFoundation
 import Capacitor
 import UIKit
 import CallKit
@@ -25,16 +24,6 @@ public class CallKitVoipPlugin: CAPPlugin {
     private let firebaseAuthQueue = DispatchQueue(label: "firebaseAuthQueue")
     private var abortedCallRegistry = Set<UUID>()
     private let abortedCallQueue = DispatchQueue(label: "abortedCallQueue")
-    
-    // MARK: - Ringing timeout support
-    private var ringingTimers: [UUID: DispatchWorkItem] = [:]
-    private let ringingTimerQueue = DispatchQueue(label: "ringingTimerQueue", attributes: .concurrent)
-
-    private var activeCallUUID: UUID?
-    private var heldCallUUID: UUID?
-    private var callStates: [UUID: CallState] = [:]
-    private var pendingAnswerAction: CXAnswerCallAction?
-
 
     override public func load() {
         voipRegistry.delegate = self
@@ -44,7 +33,7 @@ public class CallKitVoipPlugin: CAPPlugin {
         config.supportsVideo = true
         config.supportedHandleTypes = [.generic]
         config.maximumCallGroups = 1
-        config.maximumCallsPerCallGroup = 2
+        config.maximumCallsPerCallGroup = 1
         provider = CXProvider(configuration: config)
         provider?.setDelegate(self, queue: .main)
     }
@@ -145,7 +134,7 @@ public class CallKitVoipPlugin: CAPPlugin {
         #else
             let environment = "production"
         #endif
-        print("🚀 APNs Environment Detected:", environment)
+        print(" APNs Environment Detected:", environment)
         call.resolve(["environment": environment])
     }
 
@@ -161,6 +150,10 @@ public class CallKitVoipPlugin: CAPPlugin {
                     "roomname": config.roomname, "source": config.source, "title": config.title, "type": config.type,
                     "duration": config.duration, "media": config.media, "uuid": uuid.uuidString
                 ])
+            }
+            self.registryAccessQueue.async(flags: .barrier) { [weak self] in //nested call
+                guard let self = self else{return}
+                self.connectionIdRegistry[uuid] = nil
             }
         }
     }
@@ -187,6 +180,7 @@ public class CallKitVoipPlugin: CAPPlugin {
         }
     }
 
+
     @objc func abortCall(_ call: CAPPluginCall) {
         guard let uuidString = call.getString("uuid"),
               let callUUID = UUID(uuidString: uuidString) else {
@@ -196,8 +190,6 @@ public class CallKitVoipPlugin: CAPPlugin {
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            self.stopRingingTimer(for: callUUID)
-            CallSessionState.shared.reset()
             self.endCall(uuid: callUUID)
             self.realTimeDataService.hideVideoCallConfirmation(calledFrom: "abortCall")
             call.resolve()
@@ -220,113 +212,28 @@ public class CallKitVoipPlugin: CAPPlugin {
 
         NSLog("Aborting call for UUID: \(uuid)")
         answeredFromOtherDevices = "answeredFromOtherDevice"
-        stopRingingTimer(for: uuid)
-        CallSessionState.shared.reset()
         endCall(uuid: uuid)
-    }
-    
-    // MARK: - Ringing Timer
-    
-    private func startRingingTimer(for uuid: UUID) {
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self = self else { return }
-
-            guard self.callStates[uuid] == .ringing else {
-                return // answered or already ended
-            }
-
-            NSLog("Ring timeout reached for UUID: \(uuid)")
-            self.endCall(uuid: uuid)
-            self.callStates.removeValue(forKey: uuid)
-        }
-
-        ringingTimers[uuid] = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 40, execute: workItem)
-    }
-
-    private func stopRingingTimer(for uuid: UUID) {
-        ringingTimerQueue.async(flags: .barrier) {
-            if let timer = self.ringingTimers[uuid] {
-                timer.cancel()
-                self.ringingTimers.removeValue(forKey: uuid)
-                NSLog("Ring timer cancelled for UUID: \(uuid)")
-            }
-        }
     }
 }
 
 // MARK: CallKit events handler
 extension CallKitVoipPlugin: CXProviderDelegate {
-    
-    private func activateCall(_ action: CXAnswerCallAction) {
-        activeCallUUID = action.callUUID
-        callStates[action.callUUID] = .active
-
-        CallSessionState.shared.hasAnsweredCall = true
-        stopRingingTimer(for: action.callUUID)
-
-        notifyEvent(eventName: "callAnswered", uuid: action.callUUID)
-
-        action.fulfill()
-    }
-    
-    private func hardReleaseMedia(completion: @escaping () -> Void) {
-        let session = AVAudioSession.sharedInstance()
-
-        DispatchQueue.main.async {
-            do {
-                try session.setActive(false, options: [.notifyOthersOnDeactivation])
-            } catch {
-                print("Audio deactivate failed", error)
-            }
-
-            // iOS needs time to release camera owned by WebRTC
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                completion()
-            }
-        }
-    }
 
     public func providerDidReset(_ provider: CXProvider) {
         NSLog("Provider did reset")
     }
 
     public func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
-
-        // Case 1: No active call → answer immediately
-        guard let activeUUID = activeCallUUID, activeUUID != action.callUUID else {
-            activateCall(action)
-            return
-        }
-
-        callStates.removeValue(forKey: activeUUID)
-    
-        // Active call exists → defer answer
-        pendingAnswerAction = action
-
-        // Ask CallKit to end the first call
-        endCall(uuid: activeUUID)
-        // action.fulfill()
+        notifyEvent(eventName: "callAnswered", uuid: action.callUUID)
+        action.fulfill()
     }
 
     public func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
-        
-        
-        if callStates[action.callUUID] == .active {
-            activeCallUUID = nil
-            CallSessionState.shared.reset()
-        } 
-
-        notifyEvent(eventName: "callEnded", uuid: action.callUUID)
-
-        callStates.removeValue(forKey: action.callUUID)
-
-        registryAccessQueue.async(flags: .barrier) {
-            self.connectionIdRegistry[action.callUUID] = nil
-        }
-        
-        stopRingingTimer(for: action.callUUID)
         realTimeDataService.hideVideoCallConfirmation(calledFrom: "CXEndCallAction")
+        
+        if answeredFromOtherDevices != "answeredFromOtherDevice" {
+            notifyEvent(eventName: "callEnded", uuid: action.callUUID)
+        }
         
         answeredFromOtherDevices = nil // Reset flag
         
@@ -335,17 +242,7 @@ extension CallKitVoipPlugin: CXProviderDelegate {
            self.abortedCallRegistry.remove(uuid)
         }
         
-        DispatchQueue.main.async {
-            AVCaptureSession().stopRunning()
-        }
-        
         action.fulfill()
-        
-        // Now it is SAFE to answer second call
-        if let pending = self.pendingAnswerAction {
-            self.pendingAnswerAction = nil
-            self.activateCall(pending)
-        }
     }
 
     public func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
@@ -421,10 +318,6 @@ extension CallKitVoipPlugin: PKPushRegistryDelegate {
             }
             completion()
         }
-        
-        callStates[callUUID] = .ringing
-        // Start ringing timeout immediately
-        startRingingTimer(for: callUUID)
 
         // Handle Firebase listener separately
         firebaseAuthQueue.async {
@@ -449,19 +342,10 @@ extension CallKitVoipPlugin: PKPushRegistryDelegate {
                         NSLog("Delaying abort: call started \(elapsed)s ago.")
                         DispatchQueue.main.asyncAfter(deadline: .now() + (3 - elapsed)) {
                             NSLog("Aborting call after delay.")
-                            guard self.callStates[callUUID] == .ringing else {
-                                NSLog("Skipping Firebase abort – call already active")
-                                return
-                            }
                             self.abortCall(with: callUUID)
                         }
                     } else {
                         NSLog("Aborting call immediately.")
-                        guard self.callStates[callUUID] == .ringing else {
-                            NSLog("Skipping Firebase abort – call already active")
-                            return
-                        }
-
                         self.abortCall(with: callUUID)
                     }
                 }
@@ -487,9 +371,4 @@ extension CallKitVoipPlugin {
         let duration: String
         let media: String
     }
-}
-
-enum CallState {
-    case ringing
-    case active
 }

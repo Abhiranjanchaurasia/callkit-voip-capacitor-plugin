@@ -103,34 +103,7 @@ class RealTimeDataService {
     }
     
     private func shouldAbortCall(for members: [User], userId: String) -> Bool {
-        for member in members {
-            guard let status = member.status,
-                  let callStatus = CallStatus(rawValue: status) else {
-                continue
-            }
-
-            // Same user accepted on another device
-            if member.userId == userId,
-               callStatus == .accepted,
-               CallSessionState.shared.hasAnsweredCall == false {
-
-                print("Accepted on another device → abort")
-                return true
-            }
-
-            // Other participant accepted
-            if member.userId != userId,
-               callStatus == .accepted {
-                return true
-            }
-
-            // Termination states
-            if [.cancel, .declined, .removed, .unanswered].contains(callStatus) {
-                return true
-            }
-        }
-
-        return false
+        return members.contains { $0.userId == userId && $0.status.flatMap(CallStatus.init) != nil }
     }
     
     private func removeListener() {
