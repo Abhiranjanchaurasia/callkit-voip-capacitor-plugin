@@ -1,4 +1,4 @@
-platform :ios, '13.0'
+platform :ios, '15.0'
 
 def capacitor_pods
   # Comment the next line if you're not using Swift and don't want to use dynamic frameworks
@@ -9,16 +9,16 @@ end
 
 target 'Plugin' do
   capacitor_pods
-  pod 'Firebase/Auth', '~> 11.0'
-  pod 'Firebase/Core', '~> 11.0'
-  pod 'Firebase/Database', '~> 11.0'
+  pod 'Firebase/Auth', '~> 12.7'
+  pod 'Firebase/Core', '~> 12.7'
+  pod 'Firebase/Database', '~> 12.7'
  
   # Set deployment target for all pods
   post_install do |installer|
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
-        config.build_settings['SWIFT_VERSION'] = '5.1' 
-        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+        config.build_settings['SWIFT_VERSION'] = '5.1'
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
         config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
         config.build_settings['FRAMEWORK_SEARCH_PATHS'] ||= ['$(inherited)', '$(PROJECT_DIR)/Pods/**']
       end

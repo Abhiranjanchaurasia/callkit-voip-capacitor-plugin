@@ -1,5 +1,5 @@
 import Foundation
-import AVFoundation
+import AVFAudio
 import Capacitor
 import UIKit
 import CallKit
@@ -34,7 +34,10 @@ public class CallKitVoipPlugin: CAPPlugin {
     private var heldCallUUID: UUID?
     private var callStates: [UUID: CallState] = [:]
     private var pendingAnswerAction: CXAnswerCallAction?
+    private var pendingEndAction: CXEndCallAction?
 
+    private let callStateQueue = DispatchQueue(label: "callStateQueue")
+    private var providerConfiguration: CXProviderConfiguration?
 
     override public func load() {
         voipRegistry.delegate = self
@@ -45,6 +48,10 @@ public class CallKitVoipPlugin: CAPPlugin {
         config.supportedHandleTypes = [.generic]
         config.maximumCallGroups = 1
         config.maximumCallsPerCallGroup = 2
+
+        config.includesCallsInRecents = false
+        config.ringtoneSound = nil
+        providerConfiguration = config
         provider = CXProvider(configuration: config)
         provider?.setDelegate(self, queue: .main)
     }
@@ -145,7 +152,7 @@ public class CallKitVoipPlugin: CAPPlugin {
         #else
             let environment = "production"
         #endif
-        print("🚀 APNs Environment Detected:", environment)
+        print(" APNs Environment Detected:", environment)
         call.resolve(["environment": environment])
     }
 
@@ -177,7 +184,8 @@ public class CallKitVoipPlugin: CAPPlugin {
         let controller = CXCallController()
         let endAction = CXEndCallAction(call: uuid)
         let transaction = CXTransaction(action: endAction)
-
+//       endAction.fulfill()
+       
         controller.request(transaction) { error in
             if let error = error {
                 NSLog("Error ending call: \(error.localizedDescription)")
@@ -186,6 +194,7 @@ public class CallKitVoipPlugin: CAPPlugin {
             }
         }
     }
+
 
     @objc func abortCall(_ call: CAPPluginCall) {
         guard let uuidString = call.getString("uuid"),
@@ -223,6 +232,20 @@ public class CallKitVoipPlugin: CAPPlugin {
         stopRingingTimer(for: uuid)
         CallSessionState.shared.reset()
         endCall(uuid: uuid)
+    }
+    
+    @objc func fullFillPendingEndAction(_ call: CAPPluginCall) {
+        if let pending = self.pendingEndAction {
+            pending.fulfill()
+            self.pendingEndAction = nil
+        }
+    }
+    
+    @objc func fullFillPendingAnswerAction(_ call: CAPPluginCall) {
+        if let pending = self.pendingAnswerAction {
+            pending.fulfill()
+            self.pendingAnswerAction = nil
+        }
     }
     
     // MARK: - Ringing Timer
@@ -266,25 +289,11 @@ extension CallKitVoipPlugin: CXProviderDelegate {
         stopRingingTimer(for: action.callUUID)
 
         notifyEvent(eventName: "callAnswered", uuid: action.callUUID)
-
-        action.fulfill()
-    }
-    
-    private func hardReleaseMedia(completion: @escaping () -> Void) {
-        let session = AVAudioSession.sharedInstance()
-
-        DispatchQueue.main.async {
-            do {
-                try session.setActive(false, options: [.notifyOthersOnDeactivation])
-            } catch {
-                print("Audio deactivate failed", error)
-            }
-
-            // iOS needs time to release camera owned by WebRTC
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                completion()
-            }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            action.fulfill()
         }
+
     }
 
     public func providerDidReset(_ provider: CXProvider) {
@@ -317,7 +326,9 @@ extension CallKitVoipPlugin: CXProviderDelegate {
             CallSessionState.shared.reset()
         } 
 
-        notifyEvent(eventName: "callEnded", uuid: action.callUUID)
+        if (answeredFromOtherDevices != "answeredFromOtherDevice") {
+            notifyEvent(eventName: "callEnded", uuid: action.callUUID)
+        }
 
         callStates.removeValue(forKey: action.callUUID)
 
@@ -335,22 +346,32 @@ extension CallKitVoipPlugin: CXProviderDelegate {
            self.abortedCallRegistry.remove(uuid)
         }
         
-        DispatchQueue.main.async {
-            AVCaptureSession().stopRunning()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            action.fulfill()
         }
-        
-        action.fulfill()
-        
-        // Now it is SAFE to answer second call
+                
         if let pending = self.pendingAnswerAction {
             self.pendingAnswerAction = nil
-            self.activateCall(pending)
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                self.activateCall(pending)
+            }
         }
     }
 
     public func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         notifyEvent(eventName: "callStarted", uuid: action.callUUID)
         action.fulfill()
+    }
+
+    public func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
+        print("CallKit didActivate audio session")
+        notifyListeners("audioSessionActivated", data: [:])
+    }
+
+    public func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
+        print("CallKit didDeactivate audio session")
+        notifyListeners("audioSessionDeactivated", data: [:])
     }
 }
 
@@ -401,7 +422,7 @@ extension CallKitVoipPlugin: PKPushRegistryDelegate {
 
         answeredFromOtherDevices = nil
 
-        guard let provider = provider else {
+        guard var provider = provider else {
             print("CXProvider is nil, skipping call report.")
             completion()
             return
@@ -414,6 +435,16 @@ extension CallKitVoipPlugin: PKPushRegistryDelegate {
         update.supportsHolding = true
         update.supportsGrouping = false
         update.supportsUngrouping = false
+        
+        let callObserver = CXCallObserver()
+        let hasActiveCall = callObserver.calls.contains {
+            !$0.hasEnded && ($0.hasConnected || $0.isOutgoing)
+        }
+
+        if !hasActiveCall {
+            provider.configuration = providerConfiguration!
+        }
+
 
         provider.reportNewIncomingCall(with: callUUID, update: update) { error in
             if let error = error {
@@ -422,7 +453,10 @@ extension CallKitVoipPlugin: PKPushRegistryDelegate {
             completion()
         }
         
-        callStates[callUUID] = .ringing
+        // callStates[callUUID] = .ringing
+        callStateQueue.sync {
+            callStates[callUUID] = .ringing
+        }
         // Start ringing timeout immediately
         startRingingTimer(for: callUUID)
 
