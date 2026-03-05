@@ -34,6 +34,17 @@ export interface CallKitVoipPlugin {
     eventName: 'callEnded',
     listenerFunc: (callData: CallData) => void
   ): Promise<PluginListenerHandle> & PluginListenerHandle;
+
+   addListener(
+    eventName: 'audioSessionActivated',
+    listenerFunc: (callData: CallData) => void
+  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+
+  addListener(
+    eventName: 'audioSessionDeactivated',
+    listenerFunc: (callData: CallData) => void
+  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  
 }
 
 

@@ -1,5 +1,6 @@
 import Foundation
 import Capacitor
+import AVFAudio
 import UIKit
 import CallKit
 import PushKit
@@ -25,6 +26,12 @@ public class CallKitVoipPlugin: CAPPlugin {
     private var abortedCallRegistry = Set<UUID>()
     private let abortedCallQueue = DispatchQueue(label: "abortedCallQueue")
 
+    private var providerConfiguration: CXProviderConfiguration?
+
+    private var pendingAnswerAction: CXAnswerCallAction?
+    private var pendingEndAction: CXEndCallAction?
+
+
     override public func load() {
         voipRegistry.delegate = self
         voipRegistry.desiredPushTypes = [.voIP]
@@ -34,6 +41,7 @@ public class CallKitVoipPlugin: CAPPlugin {
         config.supportedHandleTypes = [.generic]
         config.maximumCallGroups = 1
         config.maximumCallsPerCallGroup = 1
+        providerConfiguration = config
         provider = CXProvider(configuration: config)
         provider?.setDelegate(self, queue: .main)
     }
@@ -170,6 +178,7 @@ public class CallKitVoipPlugin: CAPPlugin {
         let controller = CXCallController()
         let endAction = CXEndCallAction(call: uuid)
         let transaction = CXTransaction(action: endAction)
+        endAction.fulfill()
 
         controller.request(transaction) { error in
             if let error = error {
@@ -214,6 +223,21 @@ public class CallKitVoipPlugin: CAPPlugin {
         answeredFromOtherDevices = "answeredFromOtherDevice"
         endCall(uuid: uuid)
     }
+
+    @objc func fullFillPendingEndAction(_ call: CAPPluginCall) {
+        if let pending = self.pendingEndAction {
+            pending.fulfill()
+            self.pendingEndAction = nil
+        }
+    }
+    
+    @objc func fullFillPendingAnswerAction(_ call: CAPPluginCall) {
+        if let pending = self.pendingAnswerAction {
+            pending.fulfill()
+            self.pendingAnswerAction = nil
+        }
+    }
+    
 }
 
 // MARK: CallKit events handler
@@ -225,11 +249,15 @@ extension CallKitVoipPlugin: CXProviderDelegate {
 
     public func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
         notifyEvent(eventName: "callAnswered", uuid: action.callUUID)
-        action.fulfill()
+        self.pendingAnswerAction = action
+        // DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+        //     action.fulfill()
+        // }
     }
 
     public func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         realTimeDataService.hideVideoCallConfirmation(calledFrom: "CXEndCallAction")
+        self.pendingEndAction = action
         
         if answeredFromOtherDevices != "answeredFromOtherDevice" {
             notifyEvent(eventName: "callEnded", uuid: action.callUUID)
@@ -241,13 +269,25 @@ extension CallKitVoipPlugin: CXProviderDelegate {
         abortedCallQueue.async { [uuid = action.callUUID] in
            self.abortedCallRegistry.remove(uuid)
         }
-        
-        action.fulfill()
+
+        // DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+        //     action.fulfill()
+        // }
     }
 
     public func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         notifyEvent(eventName: "callStarted", uuid: action.callUUID)
         action.fulfill()
+    }
+
+    public func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
+        print("CallKit didActivate audio session")
+        notifyListeners("audioSessionActivated", data: [:])
+    }
+
+    public func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
+        print("CallKit didDeactivate audio session")
+        notifyListeners("audioSessionDeactivated", data: [:])
     }
 }
 
@@ -308,9 +348,19 @@ extension CallKitVoipPlugin: PKPushRegistryDelegate {
         update.remoteHandle = CXHandle(type: .generic, value: username)
         update.hasVideo = (payload.dictionaryPayload["media"] as? String ?? "video") == "video"
         update.supportsDTMF = false
-        update.supportsHolding = true
+        update.supportsHolding = false
         update.supportsGrouping = false
         update.supportsUngrouping = false
+
+        let callObserver = CXCallObserver()
+        let hasActiveCall = callObserver.calls.contains {
+            !$0.hasEnded && ($0.hasConnected || $0.isOutgoing)
+        }
+
+        if !hasActiveCall {
+            provider.configuration = providerConfiguration!
+        }
+        
 
         provider.reportNewIncomingCall(with: callUUID, update: update) { error in
             if let error = error {
