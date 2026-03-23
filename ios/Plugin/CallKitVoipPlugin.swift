@@ -24,20 +24,20 @@ public class CallKitVoipPlugin: CAPPlugin {
     private let firebaseAuthQueue = DispatchQueue(label: "firebaseAuthQueue")
     private var abortedCallRegistry = Set<UUID>()
     private let abortedCallQueue = DispatchQueue(label: "abortedCallQueue")
-    private var providerConfiguration: CXProviderConfiguration?
 
     override public func load() {
-        voipRegistry.delegate = self
-        voipRegistry.desiredPushTypes = [.voIP]
 
         let config = CXProviderConfiguration(localizedName: "Secure Call")
         config.supportsVideo = true
         config.supportedHandleTypes = [.generic]
         config.maximumCallGroups = 1
         config.maximumCallsPerCallGroup = 1
-        providerConfiguration = config
         provider = CXProvider(configuration: config)
         provider?.setDelegate(self, queue: .main)
+
+        voipRegistry.delegate = self
+        voipRegistry.desiredPushTypes = [.voIP]
+
     }
 
     @objc func register(_ call: CAPPluginCall) {
@@ -314,15 +314,6 @@ extension CallKitVoipPlugin: PKPushRegistryDelegate {
         update.supportsHolding = true
         update.supportsGrouping = false
         update.supportsUngrouping = false
-
-        let callObserver = CXCallObserver()
-        let hasActiveCall = callObserver.calls.contains {
-            !$0.hasEnded && ($0.hasConnected || $0.isOutgoing)
-        }
-
-        if !hasActiveCall {
-            provider.configuration = providerConfiguration!
-        }
 
         provider.reportNewIncomingCall(with: callUUID, update: update) { error in
             if let error = error {
