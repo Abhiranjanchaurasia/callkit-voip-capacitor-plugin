@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 import Capacitor
 import UIKit
 import CallKit
@@ -19,11 +20,18 @@ public class CallKitVoipPlugin: CAPPlugin {
     var hasRegisteredListener = false
     var lastNotifiedToken: String? = nil
     private let realTimeDataService = RealTimeDataService()
-    private var answeredFromOtherDevices: String?
+    private var _answeredFromOtherDevices: String?
     private let registryAccessQueue = DispatchQueue(label: "registryAccessQueue") // Serial queue for thread safety
     private let firebaseAuthQueue = DispatchQueue(label: "firebaseAuthQueue")
     private var abortedCallRegistry = Set<UUID>()
     private let abortedCallQueue = DispatchQueue(label: "abortedCallQueue")
+
+    private let stateQueue = DispatchQueue(label: "com.plugin.stateQueue")
+
+    private var answeredFromOtherDevices: String? {
+        get { stateQueue.sync { _answeredFromOtherDevices } }
+        set { stateQueue.async(flags: .barrier) { self._answeredFromOtherDevices = newValue } }
+    }
 
     override public func load() {
 
@@ -239,6 +247,20 @@ extension CallKitVoipPlugin: CXProviderDelegate {
         }
         
         answeredFromOtherDevices = nil // Reset flag
+
+        // iOS 18 fix: explicitly deactivate audio session so the next call gets a clean one
+        // Only deactivate if no other call is currently being set up
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self = self else { return }
+            let callObserver = CXCallObserver()
+            // Only reset if there are truly no active calls left
+            if callObserver.calls.isEmpty {
+                try? AVAudioSession.sharedInstance().setActive(
+                    false, 
+                    options: .notifyOthersOnDeactivation
+                )
+            }
+        }
         
         // Cleanup aborted UUID registry
         abortedCallQueue.async { [uuid = action.callUUID] in
@@ -279,6 +301,11 @@ extension CallKitVoipPlugin: PKPushRegistryDelegate {
             return
         }
 
+        // First line inside didReceiveIncomingPushWith, before UUID creation
+        realTimeDataService.hideVideoCallConfirmation(calledFrom: "newIncomingCall_cleanup")
+        answeredFromOtherDevices = nil
+        abortedCallQueue.async { self.abortedCallRegistry.removeAll() }
+
         let username = payload.dictionaryPayload["Username"] as? String ?? "Anonymous"
         let callUUID = UUID()
         let config = CallConfig(
@@ -298,8 +325,6 @@ extension CallKitVoipPlugin: PKPushRegistryDelegate {
             guard let self = self else { return }
             self.connectionIdRegistry[callUUID] = config
         }
-
-        answeredFromOtherDevices = nil
 
         guard let provider = provider else {
             print("CXProvider is nil, skipping call report.")
